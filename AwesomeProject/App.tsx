@@ -29,7 +29,7 @@ import Cross from './cross.svg';
 class App extends React.Component {
   render() {
     return (
-      <View>
+      <View testID="welcome">
         <StatusBar barStyle="dark-content" />
         <SafeAreaView>
           <ScrollView
