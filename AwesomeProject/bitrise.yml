@@ -1,0 +1,114 @@
+---
+format_version: '8'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: react-native
+trigger_map:
+  - push_branch: '*'
+    workflow: primary
+  - pull_request_source_branch: '*'
+    workflow: primary
+workflows:
+  deploy:
+    description: 'My deploy workflow'
+    steps:
+      - activate-ssh-key@4.0.3:
+          run_if: '{{getenv "SSH_RSA_PRIVATE_KEY" | ne ""}}'
+      - git-clone@4.0.17: {}
+      - script@1.1.5:
+          title: Do anything with Script step
+      - yarn@0.1.0:
+          inputs:
+            - workdir: AwesomeProject
+            - command: install
+      - install-missing-android-tools@2.3.7:
+          inputs:
+            - gradlew_path: '$PROJECT_LOCATION/gradlew'
+      - android-build@0.10.0:
+          inputs:
+            - project_location: '$PROJECT_LOCATION'
+      - certificate-and-profile-installer@1.10.1: {}
+      - xcode-archive@2.7.0:
+          inputs:
+            - project_path: '$BITRISE_PROJECT_PATH'
+            - scheme: '$BITRISE_SCHEME'
+            - export_method: '$BITRISE_EXPORT_METHOD'
+            - configuration: Release
+      - deploy-to-bitrise-io@1.9.2: {}
+  primary:
+    steps:
+      - activate-ssh-key@4.0.3:
+          run_if: '{{getenv "SSH_RSA_PRIVATE_KEY" | ne ""}}'
+      - git-clone@4.0.17: {}
+      - yarn@0.1.0:
+          inputs:
+            - workdir: AwesomeProject
+            - command: install
+          title: Yarn Install
+      - yarn@0.1.0:
+          inputs:
+            - workdir: AwesomeProject
+            - command: test
+          title: Unit tests
+    after_run:
+      - detox
+  detox:
+    steps:
+      - cocoapods-install@1.9.1:
+          inputs:
+            - source_root_path: '$BITRISE_SOURCE_DIR/AwesomeProject/ios'
+      - npm@1.1.0:
+          title: Install Global
+          inputs:
+            - workdir: '$BITRISE_SOURCE_DIR/AwesomeProject'
+            - command: install -g detox-cli react-native-cli
+      - script@1.1.5:
+          inputs:
+            - working_dir: '$BITRISE_SOURCE_DIR/AwesomeProject'
+            - content: |-
+                #!/usr/bin/env bash
+
+                brew tap facebook/fb
+                export CODE_SIGNING_REQUIRED=NO
+                brew install fbsimctl
+                brew tap wix/brew
+                brew install applesimutils --HEAD
+          title: Install detox utils
+      - script@1.1.5:
+          inputs:
+            - working_dir: '$BITRISE_SOURCE_DIR/AwesomeProject'
+            - content: |-
+                #!/usr/bin/env bash
+
+                detox build --configuration ios.sim.debug
+          title: Detox Build
+      - script@1.1.5:
+          inputs:
+            - working_dir: '$BITRISE_SOURCE_DIR/AwesomeProject'
+            - content: |-
+                #!/usr/bin/env bash
+
+                detox test --configuration ios.sim.debug --cleanup
+          title: Detox Test
+app:
+  envs:
+    - opts:
+        is_expand: false
+      PROJECT_LOCATION: AwesomeProject/android
+    - opts:
+        is_expand: false
+      MODULE: app
+    - opts:
+        is_expand: false
+      VARIANT: ''
+    - opts:
+        is_expand: false
+      BITRISE_PROJECT_PATH: AwesomeProject/ios/AwesomeProject.xcworkspace
+    - opts:
+        is_expand: false
+      BITRISE_SCHEME: AwesomeProject
+    - opts:
+        is_expand: false
+      BITRISE_EXPORT_METHOD: ad-hoc
+meta:
+  bitrise.io:
+    machine_type: elite
